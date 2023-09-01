@@ -179,6 +179,8 @@ const processedTables = Object.values(tableInstructions).map((t) => t.destTable)
 async function runOneTable(tableV3, instructions) {
   const tableV4 = instructions.destTable;
 
+  console.log('Migrating table', tableV3, 'to', tableV4);
+
   const originalData = await dbV3(resolveSourceTableName(tableV3)).select('*');
 
   const counts = instructions.counts.reduce((acc, [newName]) => {
