@@ -1,4 +1,4 @@
-const { dbV3, dbV4, isPGSQL, isSQLITE, isMYSQL } = require('../config/database');
+const { dbV3, dbV4, setDBV4, isPGSQL, isSQLITE, isMYSQL } = require('../config/database');
 const { migrateCustom } = require('./migrateCustom');
 const { migrateAdmin } = require('./migrateAdmin');
 const { migrateCoreStore } = require('./migrateCoreStore');
@@ -9,10 +9,18 @@ const { migrateWebhooks } = require('./migrateWebhooks');
 const { migrateI18n } = require('./migrateI18n');
 const { migrateComponents } = require('./migrateComponents');
 
+const { processedTables: custom02Tables } = require('../customMigrations/02_age_level_links');
+const { processedTables: custom03Tables } = require('../customMigrations/03_changed-table-name');
+
+let modelTable = [...custom02Tables, ...custom03Tables];
 const migrations = [
   migrateCoreStore,
   migrateAdmin,
   migrateUsers,
+  {
+    processedTables: modelTable,
+    migrateTables: (tables) => migrateModels(tables, modelTable, true),
+  },
   migrateCustom,
   migrateWebhooks,
   migrateI18n,
@@ -26,7 +34,7 @@ async function migrate() {
     if (!process.env.DATABASE_V4_SCHEMA) process.env.DATABASE_V4_SCHEMA = 'public';
 
     try {
-      await dbV4.raw('set session_replication_role to replica;');
+      // await dbV4.raw('set session_replication_role to replica;');
     } catch (error) {
       console.log(
         'Error setting session_replication_role to replica, you may get foreign key constraint errors'
@@ -58,9 +66,16 @@ async function migrate() {
     });
   }
 
+  tables = tables
+    .filter((table) => !table.includes('daily_tip_trackers'))
+    .filter((table) => !table.includes('guide_trackers'))
+    .filter((table) => !table.includes('post_trackers'))
+    .filter((table) => !table.includes('pregnancy_week_content_trackers'))
+    .filter((table) => !table.includes('track_trackers'));
+
   const processedTables = [];
   for (const migration of migrations) {
-    await migration.migrateTables();
+    await migration.migrateTables(tables);
     processedTables.push(...migration.processedTables);
   }
 
@@ -70,13 +85,13 @@ async function migrate() {
 
   processedTables.push(...migrateComponents.processedTables);
 
-  await migrateModels(
-    tables.filter((table) => !processedTables.includes(table)),
-    processedTables
-  );
+  // await migrateModels(
+  //   tables.filter((table) => !processedTables.includes(table)),
+  //   processedTables
+  // );
 
   if (isPGSQL) {
-    await dbV4.raw('set session_replication_role to DEFAULT;');
+    // await dbV4.raw('set session_replication_role to DEFAULT;');
   }
 
   if (isMYSQL) {

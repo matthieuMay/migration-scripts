@@ -4,6 +4,8 @@ const { migrateItems } = require('./migrateFields');
 const { pick } = require('lodash');
 const { resolveDestTableName, resolveSourceTableName } = require('./tableNameHelpers');
 
+const workerNumber = 8;
+
 async function migrate(source, destination, itemMapper = undefined) {
   if (isMYSQL) {
     const sourceNotExists = (await dbV3.raw(`SHOW TABLES LIKE '%${source}%';`))[0].length === 0;
@@ -112,51 +114,57 @@ async function migrate(source, destination, itemMapper = undefined) {
 
   const tableColumns = Object.keys(tableColumnsInfo);
 
-  for (let page = 0; page * BATCH_SIZE < count; page++) {
-    console.log(`${source} batch #${page + 1}`);
-    let items;
+  const pageCount = Math.ceil(count / BATCH_SIZE);
+  const pages = Array.from(Array(pageCount).keys());
 
-    if (isPGSQL) {
-      items = await dbV3(resolveSourceTableName(source))
+  const workerLoads = Array.from(Array(workerNumber).keys()).map((worker) =>
+    pages.slice(
+      Math.ceil((worker * pageCount) / workerNumber),
+      Math.ceil(((worker + 1) * pageCount) / workerNumber)
+    )
+  );
+
+  const oneJob = async (workerPages) => {
+    for (const page of workerPages) {
+      console.log(`${source} batch #${page + 1}`);
+      let items = await dbV3(resolveSourceTableName(source))
         .limit(BATCH_SIZE)
         .offset(page * BATCH_SIZE)
         .orderBy('id', 'asc');
-    } else {
-      items = await dbV3(resolveSourceTableName(source))
-        .limit(BATCH_SIZE)
-        .offset(page * BATCH_SIZE);
-    }
 
-    const withParsedJsonFields = items.map((item) => {
-      if (jsonFields.length > 0) {
-        jsonFields.forEach((field) => {
-          item[field] = JSON.stringify(item[field]);
-        });
+      const withParsedJsonFields = items.map((item) => {
+        if (jsonFields.length > 0) {
+          jsonFields.forEach((field) => {
+            item[field] = JSON.stringify(item[field]);
+          });
+        }
+
+        return item;
+      });
+
+      const migratedItems = migrateItems(withParsedJsonFields, itemMapper).map((item) => {
+        const filteredItems = pick(item, tableColumns);
+
+        if (Object.keys(item).length !== Object.keys(filteredItems).length) {
+          const filteredColumns = Object.keys(item).filter(function (obj) {
+            return Object.keys(filteredItems).indexOf(obj) == -1;
+          });
+
+          console.log(
+            'WARNING - items of ' + destination + ' was filtered ' + JSON.stringify(filteredColumns)
+          );
+        }
+
+        return filteredItems;
+      });
+
+      if (migratedItems.length > 0) {
+        await dbV4(resolveDestTableName(destination)).insert(migratedItems);
       }
-
-      return item;
-    });
-
-    const migratedItems = migrateItems(withParsedJsonFields, itemMapper).map((item) => {
-      const filteredItems = pick(item, tableColumns);
-
-      if (Object.keys(item).length !== Object.keys(filteredItems).length) {
-        const filteredColumns = Object.keys(item).filter(function (obj) {
-          return Object.keys(filteredItems).indexOf(obj) == -1;
-        });
-
-        console.log(
-          'WARNING - items of ' + destination + ' was filtered ' + JSON.stringify(filteredColumns)
-        );
-      }
-
-      return filteredItems;
-    });
-
-    if (migratedItems.length > 0) {
-      await dbV4(resolveDestTableName(destination)).insert(migratedItems);
     }
-  }
+  };
+
+  await Promise.all(workerLoads.map((load) => oneJob(load)));
 
   await resetTableSequence(destination);
 }

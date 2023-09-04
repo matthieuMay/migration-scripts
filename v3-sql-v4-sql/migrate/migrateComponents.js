@@ -11,7 +11,10 @@ const { resolveSourceTableName } = require('./helpers/tableNameHelpers');
 var relations = [];
 const skipAttributes = ['created_by', 'updated_by'];
 
-const processedTables = [];
+const processedTables = [
+  'components_recommend_content_macros',
+  'components_recommend_content_macros_macro_links',
+];
 async function migrateTables(tables) {
   console.log('Migrating components');
 
@@ -35,7 +38,12 @@ async function migrateTables(tables) {
       const data = JSON.parse(item.value);
 
       return data.collectionName;
-    });
+    })
+    .filter((item) => !processedTables.includes(item));
+  console.log(
+    '🚀 ~ file: migrateComponents.js:39 ~ migrateTables ~ componentsToMigrate:',
+    componentsToMigrate
+  );
 
   let componentRelationsTables = [];
 
@@ -67,7 +75,6 @@ async function migrateTables(tables) {
       .map((row) => row.table_name || row.TABLE_NAME)
       .filter((item) => !componentsToMigrate.includes(item));
   }
-
   for (const table of componentsToMigrate) {
     const componentDefinition = modelsDefs.find(
       (item) => JSON.parse(item.value).collectionName === table
@@ -87,7 +94,7 @@ async function migrateTables(tables) {
             value,
             collectionName: componentDefinitionObject.collectionName,
             uid: componentDefinitionObject.uid,
-            isComponent: true
+            isComponent: true,
           },
           relations
         );
