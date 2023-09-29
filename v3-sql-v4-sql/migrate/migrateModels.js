@@ -10,11 +10,14 @@ var relations = [];
 const skipAttributes = ['created_by', 'updated_by'];
 
 const bypassed = [
-  'model_def_application::daily-tip-tracker.daily-tip-tracker',
-  'model_def_application::guide-tracker.guide-tracker',
-  'model_def_application::post-tracker.post-tracker',
-  'model_def_application::pregnancy-week-content-tracker.pregnancy-week-content-tracker',
-  'model_def_application::track-tracker.track-tracker',
+  // for test of production migration : if the cms is running, some foreign key constraint can be violated.
+  // inhibiting those collections will allow to test the migration script without having to stop the cms.
+  //
+  // 'model_def_application::daily-tip-tracker.daily-tip-tracker',
+  // 'model_def_application::guide-tracker.guide-tracker',
+  // 'model_def_application::post-tracker.post-tracker',
+  // 'model_def_application::pregnancy-week-content-tracker.pregnancy-week-content-tracker',
+  // 'model_def_application::track-tracker.track-tracker',
 ];
 
 async function migrateModels(tables, processedTables, withRelations = true) {

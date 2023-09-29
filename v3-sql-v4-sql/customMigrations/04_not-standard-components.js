@@ -21,8 +21,10 @@ async function migrateTables() {
 
   await dbV4(resolveDestTableName(processedTables[0])).del();
   //   await dbV4(resolveDestTableName(processedTables[1])).truncate();
-  await dbV4(resolveDestTableName(processedTables[0])).insert(mainTableData);
-  await dbV4(resolveDestTableName(processedTables[1])).insert(secondTableData);
+  if (originalData.length) {
+    await dbV4(resolveDestTableName(processedTables[0])).insert(mainTableData);
+    await dbV4(resolveDestTableName(processedTables[1])).insert(secondTableData);
+  }
 }
 
 module.exports = {

@@ -66,12 +66,15 @@ async function migrate() {
     });
   }
 
-  tables = tables
-    .filter((table) => !table.includes('daily_tip_trackers'))
-    .filter((table) => !table.includes('guide_trackers'))
-    .filter((table) => !table.includes('post_trackers'))
-    .filter((table) => !table.includes('pregnancy_week_content_trackers'))
-    .filter((table) => !table.includes('track_trackers'));
+  // for test of production migration : if the cms is running, some foreign key constraint can be violated.
+  // inhibiting those collections will allow to test the migration script without having to stop the cms.
+
+  // tables = tables
+  //   .filter((table) => !table.includes('daily_tip_trackers'))
+  //   .filter((table) => !table.includes('guide_trackers'))
+  //   .filter((table) => !table.includes('post_trackers'))
+  //   .filter((table) => !table.includes('pregnancy_week_content_trackers'))
+  //   .filter((table) => !table.includes('track_trackers'));
 
   const processedTables = [];
   for (const migration of migrations) {
